@@ -25,33 +25,32 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRecordingLive, setIsRecordingLive] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
-
-  const socketRef = useRef(null);
+  const [socket, setSocket] = useState(null);
 
   // Initialize Socket.io client
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
+    const s = io(SOCKET_URL, {
       transports: ["polling", "websocket"],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       timeout: 10000,
     });
-    socketRef.current = socket;
+    setSocket(s);
 
-    socket.on("connect", () => {
+    s.on("connect", () => {
       setSocketConnected(true);
     });
 
-    socket.on("connect_error", (err) => {
+    s.on("connect_error", (err) => {
       setSocketConnected(false);
     });
 
-    socket.on("disconnect", () => {
+    s.on("disconnect", () => {
       setSocketConnected(false);
     });
 
     return () => {
-      if (socket) socket.disconnect();
+      if (s) s.disconnect();
     };
   }, []);
 
@@ -123,7 +122,8 @@ export default function App() {
 
           {activeView === "live" && (
             <AudioRecorder
-              socket={socketRef.current}
+              socket={socket}
+              socketConnected={socketConnected}
               onRecordingStateChange={(isRec) => setIsRecordingLive(isRec)}
             />
           )}

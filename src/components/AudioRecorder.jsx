@@ -44,7 +44,7 @@ const LANGUAGES = [
   { code: "nl", label: "Dutch (Nederlands)" },
 ];
 
-export default function AudioRecorder({ socket, onRecordingStateChange }) {
+export default function AudioRecorder({ socket, socketConnected, onRecordingStateChange }) {
   // Recording states
   const [recordingStatus, setRecordingStatus] = useState("idle"); // 'idle' | 'recording' | 'paused' | 'processing'
   const [selectedLanguage, setSelectedLanguage] = useState("");
@@ -234,12 +234,32 @@ export default function AudioRecorder({ socket, onRecordingStateChange }) {
   const stopRecording = () => {
     clearInterval(timerRef.current);
     setRecordingStatus("processing");
+    setStatusNotification("Finalizing transcription with Faster-Whisper...");
 
-    const finalizeAndEmitStop = () => {
-      if (socket && socket.connected) {
-        socket.emit("stop_transcription", {
-          title: recordingTitle || "Live Microphone Recording",
-        });
+    const finalizeAndEmitStop = (audioBlob) => {
+      const mimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
+      const format = mimeType.includes("webm") ? "webm" : "ogg";
+
+      if (audioBlob) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64Data = reader.result?.split(",")[1];
+          if (socket && socket.connected) {
+            socket.emit("stop_transcription", {
+              title: recordingTitle || "Live Microphone Recording",
+              audioBase64: base64Data,
+              format: format,
+            });
+          }
+        };
+        reader.readAsDataURL(audioBlob);
+      } else {
+        if (socket && socket.connected) {
+          socket.emit("stop_transcription", {
+            title: recordingTitle || "Live Microphone Recording",
+            format: format,
+          });
+        }
       }
     };
 
@@ -249,11 +269,11 @@ export default function AudioRecorder({ socket, onRecordingStateChange }) {
         const audioBlob = new Blob(recordedChunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
-        finalizeAndEmitStop();
+        finalizeAndEmitStop(audioBlob);
       };
       mediaRecorderRef.current.stop();
     } else {
-      finalizeAndEmitStop();
+      finalizeAndEmitStop(null);
     }
 
     if (streamRef.current) {
