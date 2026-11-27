@@ -18,7 +18,13 @@ import AudioUploader from "./components/AudioUploader";
 import History from "./pages/History";
 import SettingsView from "./components/SettingsView";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+// Dynamically select socket URL: local or production Render backend
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:5000"
+    : "https://speech-to-text-backend-mwst.onrender.com");
 
 export default function App() {
   const [activeView, setActiveView] = useState("overview"); // 'overview' | 'live' | 'upload' | 'history' | 'settings'
@@ -31,7 +37,7 @@ export default function App() {
   useEffect(() => {
     const s = io(SOCKET_URL, {
       transports: ["polling", "websocket"],
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 15,
       reconnectionDelay: 1000,
       timeout: 10000,
     });

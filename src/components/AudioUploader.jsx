@@ -19,9 +19,9 @@ const SUPPORTED_FORMATS = [".wav", ".mp3", ".m4a", ".webm", ".ogg", ".flac", ".a
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 const LANGUAGES = [
-  { code: "", label: "Auto-detect Language" },
+  { code: "", label: "Auto-detect (Multilingual / Hinglish)" },
   { code: "en", label: "English" },
-  { code: "hi", label: "Hindi (हिन्दी)" },
+  { code: "hi", label: "Hindi (हिन्दी / Hinglish)" },
   { code: "bn", label: "Bengali (বাংলা)" },
   { code: "mr", label: "Marathi (मराठी)" },
   { code: "te", label: "Telugu (తెలుగు)" },
@@ -366,7 +366,7 @@ export default function AudioUploader({ onTranscriptionSaved }) {
             <div className="flex items-center gap-2">
               {transcriptionResult.language && (
                 <span className="px-2.5 py-0.5 rounded-full bg-indigo-950 border border-indigo-800/60 text-indigo-300 text-xs font-bold uppercase tracking-wider">
-                  {transcriptionResult.language}{" "}
+                  {LANGUAGES.find((l) => l.code === (transcriptionResult.language || "").toLowerCase())?.label || (transcriptionResult.language || "").toUpperCase()}{" "}
                   {transcriptionResult.language_probability
                     ? `(${Math.round(transcriptionResult.language_probability * 100)}% conf)`
                     : ""}

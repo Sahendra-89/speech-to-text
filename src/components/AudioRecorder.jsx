@@ -14,13 +14,14 @@ import {
   Clock,
   AlertCircle,
   FileCheck,
+  WifiOff,
 } from "lucide-react";
 import { createTranscription } from "../services/api";
 
 const LANGUAGES = [
-  { code: "", label: "Auto-detect Language" },
+  { code: "", label: "Auto-detect (Multilingual / Hinglish)" },
   { code: "en", label: "English" },
-  { code: "hi", label: "Hindi (हिन्दी)" },
+  { code: "hi", label: "Hindi (हिन्दी / Hinglish)" },
   { code: "bn", label: "Bengali (বাংলা)" },
   { code: "mr", label: "Marathi (मराठी)" },
   { code: "te", label: "Telugu (తెలుగు)" },
@@ -48,7 +49,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
   // Recording states
   const [recordingStatus, setRecordingStatus] = useState("idle"); // 'idle' | 'recording' | 'paused' | 'processing'
   const [selectedLanguage, setSelectedLanguage] = useState("");
-  const [recordingTitle, setRecordingTitle] = useState("Live Microphone Recording");
+  const [recordingTitle, setRecordingTitle] = useState("Live Multilingual Recording");
   const [permissionError, setPermissionError] = useState("");
 
   // Timer state
@@ -131,11 +132,22 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
     return `${mins.toString().padStart(2, "0")}:${rem.toString().padStart(2, "0")}`;
   };
 
+  // Helper to find readable language name
+  const getLanguageLabel = (code) => {
+    if (!code) return "Auto-detect";
+    const found = LANGUAGES.find((l) => l.code === code.toLowerCase());
+    return found ? found.label : code.toUpperCase();
+  };
+
   // START RECORDING
   const startRecording = async () => {
     setPermissionError("");
     setStatusNotification("");
     setIsSaved(false);
+    setLiveTranscript("");
+    setDetectedLanguage(null);
+    setConfidence(null);
+
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
@@ -166,7 +178,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
       // Notify backend through Socket
       if (socket && socket.connected) {
         socket.emit("start_transcription", {
-          title: recordingTitle || "Live Microphone Recording",
+          title: recordingTitle || "Live Multilingual Recording",
           language: selectedLanguage || null,
           format: format,
         });
@@ -234,7 +246,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
   const stopRecording = () => {
     clearInterval(timerRef.current);
     setRecordingStatus("processing");
-    setStatusNotification("Finalizing transcription with Faster-Whisper...");
+    setStatusNotification("Finalizing multilingual transcription with Faster-Whisper...");
 
     const finalizeAndEmitStop = (audioBlob) => {
       const mimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
@@ -246,9 +258,10 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
           const base64Data = reader.result?.split(",")[1];
           if (socket && socket.connected) {
             socket.emit("stop_transcription", {
-              title: recordingTitle || "Live Microphone Recording",
+              title: recordingTitle || "Live Multilingual Recording",
               audioBase64: base64Data,
               format: format,
+              language: selectedLanguage || null,
             });
           }
         };
@@ -256,8 +269,9 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
       } else {
         if (socket && socket.connected) {
           socket.emit("stop_transcription", {
-            title: recordingTitle || "Live Microphone Recording",
+            title: recordingTitle || "Live Multilingual Recording",
             format: format,
+            language: selectedLanguage || null,
           });
         }
       }
@@ -329,11 +343,24 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
       <div>
         <h2 className="text-2xl font-bold text-white tracking-tight">Real-Time Audio Recording</h2>
         <p className="text-sm text-slate-400 mt-1">
-          Stream microphone audio live to Faster-Whisper with incremental duplicate-text prevention.
+          Stream microphone audio live to Faster-Whisper with multilingual speech recognition (Hindi, English, Hinglish, & 20+ languages).
         </p>
       </div>
 
-      {/* Permission / Status Alert */}
+      {/* Socket Connection Warning */}
+      {!socketConnected && (
+        <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-amber-300 flex items-center gap-3">
+          <WifiOff className="h-5 w-5 text-amber-400 flex-shrink-0 animate-pulse" />
+          <div className="text-xs">
+            <p className="font-semibold">Connecting to Real-time Backend...</p>
+            <p className="text-amber-400/80 mt-0.5">
+              Live streaming will automatically connect. If Render backend is waking up, this may take a few seconds.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Permission Alert */}
       {permissionError && (
         <div className="p-4 rounded-2xl bg-red-950/40 border border-red-800/60 text-red-300 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
@@ -362,7 +389,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
 
         <div>
           <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-            <Globe className="h-3.5 w-3.5 text-indigo-400" /> Target Language
+            <Globe className="h-3.5 w-3.5 text-indigo-400" /> Target Language / Dialect
           </label>
           <select
             value={selectedLanguage}
@@ -414,7 +441,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
                 : recordingStatus === "paused"
                 ? "Recording Paused"
                 : recordingStatus === "processing"
-                ? "Processing Audio..."
+                ? "Processing Audio with Faster-Whisper..."
                 : "Microphone Ready"}
             </span>
           </div>
@@ -481,7 +508,7 @@ export default function AudioRecorder({ socket, socketConnected, onRecordingStat
           <div className="flex items-center gap-2">
             {detectedLanguage && (
               <span className="px-2.5 py-0.5 rounded-full bg-indigo-950 border border-indigo-800/60 text-indigo-300 text-xs font-bold uppercase tracking-wider">
-                {detectedLanguage} {confidence ? `(${confidence}%)` : ""}
+                {getLanguageLabel(detectedLanguage)} {confidence ? `(${confidence}%)` : ""}
               </span>
             )}
             {statusNotification && (
