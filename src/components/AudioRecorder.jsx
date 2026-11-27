@@ -20,10 +20,28 @@ import { createTranscription } from "../services/api";
 const LANGUAGES = [
   { code: "", label: "Auto-detect Language" },
   { code: "en", label: "English" },
-  { code: "hi", label: "Hindi" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
+  { code: "hi", label: "Hindi (हिन्दी)" },
+  { code: "bn", label: "Bengali (বাংলা)" },
+  { code: "mr", label: "Marathi (मराठी)" },
+  { code: "te", label: "Telugu (తెలుగు)" },
+  { code: "ta", label: "Tamil (தமிழ்)" },
+  { code: "gu", label: "Gujarati (ગુજરાતી)" },
+  { code: "ur", label: "Urdu (اردو)" },
+  { code: "kn", label: "Kannada (ಕನ್ನಡ)" },
+  { code: "ml", label: "Malayalam (മലയാളം)" },
+  { code: "pa", label: "Punjabi (ਪੰਜਾਬੀ)" },
+  { code: "es", label: "Spanish (Español)" },
+  { code: "fr", label: "French (Français)" },
+  { code: "de", label: "German (Deutsch)" },
+  { code: "it", label: "Italian (Italiano)" },
+  { code: "pt", label: "Portuguese (Português)" },
+  { code: "ru", label: "Russian (Русский)" },
+  { code: "ar", label: "Arabic (العربية)" },
+  { code: "ja", label: "Japanese (日本語)" },
+  { code: "ko", label: "Korean (한국어)" },
+  { code: "zh", label: "Chinese (中文)" },
+  { code: "tr", label: "Turkish (Türkçe)" },
+  { code: "nl", label: "Dutch (Nederlands)" },
 ];
 
 export default function AudioRecorder({ socket, onRecordingStateChange }) {
@@ -73,6 +91,12 @@ export default function AudioRecorder({ socket, onRecordingStateChange }) {
     const handleComplete = (data) => {
       setRecordingStatus("idle");
       setStatusNotification(`Transcription finished (${data.duration || 0}s).`);
+      if (data.text) {
+        setLiveTranscript(data.text);
+      }
+      if (data.language) {
+        setDetectedLanguage(data.language);
+      }
     };
 
     const handleSaved = (data) => {
@@ -211,21 +235,30 @@ export default function AudioRecorder({ socket, onRecordingStateChange }) {
     clearInterval(timerRef.current);
     setRecordingStatus("processing");
 
+    const finalizeAndEmitStop = () => {
+      if (socket && socket.connected) {
+        socket.emit("stop_transcription", {
+          title: recordingTitle || "Live Microphone Recording",
+        });
+      }
+    };
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = () => {
+        const mimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
+        const audioBlob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(audioBlob);
+        setAudioUrl(url);
+        finalizeAndEmitStop();
+      };
       mediaRecorderRef.current.stop();
+    } else {
+      finalizeAndEmitStop();
     }
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
     }
-
-    if (socket && socket.connected) {
-      socket.emit("stop_transcription", {
-        title: recordingTitle || "Live Microphone Recording",
-      });
-    }
-
-    setRecordingStatus("idle");
   };
 
   // COPY TEXT
